@@ -22,6 +22,15 @@ class User(Base):
     permissions = Column(String)
     refresh_token = Column(String)
     is_active = Column(Boolean, default=True, server_default="true")
+    
+    # Service Engineer specific fields (or general profile)
+    address = Column(String, nullable=True)
+    state = Column(String, nullable=True)
+    district = Column(String, nullable=True)
+    taluka = Column(String, nullable=True)
+    is_team_lead = Column(Boolean, default=False)
+    is_under_dealer = Column(Boolean, default=False)
+    status = Column(String, default="Active") # Active, Inactive
 
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
@@ -31,20 +40,28 @@ class State(Base):
     __tablename__ = "states"
     id = Column(Integer, primary_key=True)
     name = Column(String, unique=True)
-    code = Column(String, unique=True)
 
 class District(Base):
     __tablename__ = "districts"
     id = Column(Integer, primary_key=True)
     name = Column(String)
-    code = Column(String)
     state_id = Column(Integer, ForeignKey("states.id"))
 
 class Taluka(Base):
     __tablename__ = "talukas"
     id = Column(Integer, primary_key=True)
     name = Column(String)
+    code = Column(String, nullable=True)
+    pincode = Column(String, nullable=True)
+    status = Column(String, default="Active")
     district_id = Column(Integer, ForeignKey("districts.id"))
+    created_at = Column(DateTime, server_default=func.now())
+
+class Village(Base):
+    __tablename__ = "villages"
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+    taluka_id = Column(Integer, ForeignKey("talukas.id"))
 
 # Machine Models
 class Machine(Base):
@@ -52,8 +69,8 @@ class Machine(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True)
     description = Column(String)
-    photo = Column(String, nullable=True)
-    created_at = Column(DateTime, server_default=func.now())
+    image_url = Column(String, nullable=True)
+    photo = Column(Text, nullable=True) # For base64 or URL
 
 class MachineModel(Base):
     __tablename__ = "machine_models"
@@ -100,12 +117,14 @@ class ComplaintCategory(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String, unique=True)
     description = Column(String, nullable=True)
+    status = Column(String, default="Active")
     created_at = Column(DateTime, server_default=func.now())
 
 class ComplaintSubCategory(Base):
     __tablename__ = "complaint_subcategories"
     id = Column(Integer, primary_key=True)
     name = Column(String)
+    status = Column(String, default="Active")
     category_id = Column(Integer, ForeignKey("complaint_categories.id"))
 
 class ComplaintIssue(Base):
@@ -151,6 +170,7 @@ class CustomerMachine(Base):
     warranty_until = Column(DateTime)
     service_engineer_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     dealer_id = Column(Integer, ForeignKey("dealers.id"), nullable=True)
+    status = Column(String, default="Active")
     created_at = Column(DateTime, server_default=func.now())
 
 # Service Engineer Team
@@ -225,6 +245,21 @@ class UserManual(Base):
     file_size = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, server_default=func.now())
+# Machine Parts
+class Part(Base):
+    __tablename__ = "parts"
+    id = Column(Integer, primary_key=True, index=True)
+    part_name = Column(String)
+    part_number = Column(String, unique=True, index=True)
+    description = Column(Text, nullable=True)
+    photo_url = Column(String, nullable=True)
+    photo = Column(Text, nullable=True) # For base64 or URL
+    price = Column(String, nullable=True)
+    machine_id = Column(Integer, ForeignKey("machines.id"), nullable=True)
+    machine_model_id = Column(Integer, ForeignKey("machine_models.id"), nullable=True)
+    status = Column(String, default="Active")
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
 # API Logs
 class APILog(Base):
@@ -243,3 +278,43 @@ class APILog(Base):
     ip_address = Column(String, nullable=True)
     user_agent = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+class Collection(Base):
+    __tablename__ = "collections"
+    id = Column(Integer, primary_key=True, index=True)
+    complaint_id = Column(Integer, ForeignKey("complaints.id"))
+    labour_charge = Column(Float, default=0.0)
+    local_part_amt = Column(Float, default=0.0)
+    part_amt = Column(Float, default=0.0)
+    total_amt = Column(Float, default=0.0)
+    root_cause = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+# CheckSheets
+class CheckSheet(Base):
+    __tablename__ = "checksheets"
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String)
+    description = Column(Text, nullable=True)
+    status = Column(String, default="Active")
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    
+    sections = relationship("CheckSheetSection", back_populates="checksheet", cascade="all, delete-orphan")
+
+class CheckSheetSection(Base):
+    __tablename__ = "checksheet_sections"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String)
+    checksheet_id = Column(Integer, ForeignKey("checksheets.id"))
+    
+    checksheet = relationship("CheckSheet", back_populates="sections")
+    items = relationship("CheckSheetItem", back_populates="section", cascade="all, delete-orphan")
+
+class CheckSheetItem(Base):
+    __tablename__ = "checksheet_items"
+    id = Column(Integer, primary_key=True, index=True)
+    description = Column(Text)
+    is_required = Column(Boolean, default=True)
+    section_id = Column(Integer, ForeignKey("checksheet_sections.id"))
+    
+    section = relationship("CheckSheetSection", back_populates="items")
