@@ -185,12 +185,14 @@ class CategoryResponse(BaseModel):
 class SubCategoryCreate(BaseModel):
     name: str
     category_id: int
+    description: Optional[str] = None
     status: Optional[str] = "Active"
 
 class SubCategoryResponse(BaseModel):
     id: int
     name: str
     category_id: int
+    description: Optional[str] = None
     status: str
 
     class Config:
@@ -204,10 +206,19 @@ class IssueCreate(BaseModel):
 # Location Schemas
 class StateCreate(BaseModel):
     name: str
+    code: Optional[str] = None
+    zone: Optional[str] = None
+    mttr: Optional[float] = 0.0
+    status: Optional[str] = "Active"
 
 class StateResponse(BaseModel):
     id: int
     name: str
+    code: Optional[str] = None
+    zone: Optional[str] = None
+    mttr: float = 0.0
+    status: str = "Active"
+    created_at: Optional[datetime] = None
     class Config:
         from_attributes = True
 
@@ -280,6 +291,7 @@ class DistrictHierarchy(BaseModel):
 class StateHierarchy(BaseModel):
     id: int
     name: str
+    zone: Optional[str] = None
     districts: List[DistrictHierarchy] = []
 
 # Attendance Schemas

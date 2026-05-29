@@ -40,6 +40,11 @@ class State(Base):
     __tablename__ = "states"
     id = Column(Integer, primary_key=True)
     name = Column(String, unique=True)
+    code = Column(String, nullable=True)
+    zone = Column(String, nullable=True)
+    mttr = Column(Float, default=0.0, server_default="0.0")
+    status = Column(String, default="Active", server_default="Active")
+    created_at = Column(DateTime, server_default=func.now())
 
 class District(Base):
     __tablename__ = "districts"
@@ -124,6 +129,7 @@ class ComplaintSubCategory(Base):
     __tablename__ = "complaint_subcategories"
     id = Column(Integer, primary_key=True)
     name = Column(String)
+    description = Column(String, nullable=True)
     status = Column(String, default="Active")
     category_id = Column(Integer, ForeignKey("complaint_categories.id"))
 

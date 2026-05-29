@@ -836,6 +836,25 @@ def update_complaint_status(complaint_id: int, status: str, db: Session = Depend
     db.commit()
     return {"message": f"Complaint status updated to {status}"}
 
+@app.delete("/complaints/{complaint_id}")
+def delete_complaint(complaint_id: int, db: Session = Depends(get_db)):
+    complaint = db.query(models.Complaint).filter(models.Complaint.id == complaint_id).first()
+    if not complaint:
+        raise HTTPException(status_code=404, detail="Complaint not found")
+    
+    try:
+        # Delete related collections and reviews to avoid foreign key constraint errors
+        db.query(models.Collection).filter(models.Collection.complaint_id == complaint_id).delete(synchronize_session=False)
+        db.query(models.Review).filter(models.Review.complaint_id == complaint_id).delete(synchronize_session=False)
+        
+        db.delete(complaint)
+        db.commit()
+        return {"message": "Complaint deleted successfully"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete complaint: {str(e)}")
+
+
 # ==================== COMPLAINT CATEGORY APIs ====================
 @app.get("/complaint-categories", response_model=List[schemas.CategoryResponse])
 def get_complaint_categories(db: Session = Depends(get_db)):
@@ -1081,15 +1100,58 @@ def delete_part(part_id: int, db: Session = Depends(get_db)):
 # ==================== LOCATION APIs ====================
 @app.get("/states")
 def get_states(db: Session = Depends(get_db)):
-    return db.query(models.State).all()
+    return db.query(models.State).order_by(models.State.id).all()
 
 @app.post("/states")
 def create_state(state: schemas.StateCreate, db: Session = Depends(get_db)):
-    new_state = models.State(name=state.name)
+    existing = db.query(models.State).filter(models.State.name == state.name).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="State already exists")
+    
+    new_state = models.State(
+        name=state.name,
+        code=state.code,
+        zone=state.zone,
+        mttr=state.mttr if state.mttr is not None else 0.0,
+        status=state.status or "Active"
+    )
     db.add(new_state)
     db.commit()
     db.refresh(new_state)
     return new_state
+
+@app.put("/states/{state_id}")
+def update_state(state_id: int, state_data: schemas.StateCreate, db: Session = Depends(get_db)):
+    state = db.query(models.State).filter(models.State.id == state_id).first()
+    if not state:
+        raise HTTPException(status_code=404, detail="State not found")
+    
+    state.name = state_data.name
+    state.code = state_data.code
+    state.zone = state_data.zone
+    if state_data.mttr is not None:
+        state.mttr = state_data.mttr
+    if state_data.status is not None:
+        state.status = state_data.status
+        
+    db.commit()
+    db.refresh(state)
+    return state
+
+@app.delete("/states/{state_id}")
+def delete_state(state_id: int, db: Session = Depends(get_db)):
+    state = db.query(models.State).filter(models.State.id == state_id).first()
+    if not state:
+        raise HTTPException(status_code=404, detail="State not found")
+        
+    try:
+        db.query(models.District).filter(models.District.state_id == state_id).delete()
+        db.delete(state)
+        db.commit()
+        return {"message": "State deleted successfully"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/districts/{state_id}")
 def get_districts(state_id: int, db: Session = Depends(get_db)):
@@ -1256,6 +1318,7 @@ def get_location_hierarchy(db: Session = Depends(get_db)):
         result.append({
             "id": s.id,
             "name": s.name,
+            "zone": s.zone,
             "districts": d_list
         })
     return result
